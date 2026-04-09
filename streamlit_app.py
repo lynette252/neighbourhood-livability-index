@@ -18,51 +18,18 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ---------------------------
 # App config
 # ---------------------------
-st.set_page_config(page_title="Neighbourhood Livability Index (MVP)", layout="centered")
-st.markdown("""
-    <style>
-        .main > div {
-            padding-top: 1rem;
-        }
-        h1, h2, h3 {
-            color: #ffffff;
-        }
-        
-        /* KPI Card Styling */
-        div[data-testid="stMetric"] {
-            background-color: #1e293b;  /* dark card */
-            border: 1px solid #334155;
-            padding: 16px;
-            border-radius: 12px;
-            text-align: center;
-        }
-            
-        /* Metric label */
-        div[data-testid="stMetricLabel"] {
-            color: #94a3b8 !important;
-            font-size: 14px;
-        }
-        
-        /* Metric value */
-        div[data-testid="stMetricValue"] {
-            color: #ffffff !important;
-            font-size: 28px;
-            font-weight: bold;
-        }
-            
-        /* Metric delta */
-        div[data-testid="stMetricDelta"] {
-            font-size: 12px;
-        }
-    </style>
-""", unsafe_allow_html=True)
 
-st.title("Neighbourhood Livability Index (MVP)")
-st.markdown("""
-Compare the livability of two suburbs based on nearby **amenities, transport access, and location intelligence**.
+st.sidebar.title("Filters")
 
-Enter two suburbs below to generate a real-time comparison dashboard.
-""")
+st.sidebar.markdown("KPI Selection")
+
+show_amenities = st.sidebar.checkbox("Amenities", True)
+show_transport = st.sidebar.checkbox("Transport", True)
+
+st.markdown("## Demografy")
+st.markdown("### Livability Intelligence Dashboard")
+st.caption("Compare suburbs using real-time amenities, transport & location intelligence")
+
 
 st.divider()
 
@@ -88,8 +55,6 @@ with col2:
 st.divider()
 run_analysis = st.button("Run Livability Comparison", use_container_width=True)
 
-##suburb_a = st.text_input("Select Suburb A (e.g. Sunnybank, QLD)")
-##suburb_b = st.text_input("Select Suburb B (e.g. Rochedale, QLD)")
 
 # ---------------------------
 # Helpers
@@ -219,8 +184,6 @@ def get_cached_metrics(suburb_name: str, max_age_hours: int = 24):
         return None
     return row
 
-    # Requires suburb_name to be UNIQUE in the table
-    return supabase.table("suburb_metrics").upsert(payload, on_conflict="suburb_name").execute()
 
 def insert_raw_history(suburb_name: str, place_type: str, raw_json: dict):
     """Optional: store raw history in raw_places_data."""
@@ -232,21 +195,17 @@ def insert_raw_history(suburb_name: str, place_type: str, raw_json: dict):
     }
     return supabase.table("raw_places_data").insert(payload).execute()
 
-# ---------------------------
-# Main action
-# ---------------------------
-if st.button("Compare Suburbs"):
+
+if run_analysis:
     if not suburb_a.strip() or not suburb_b.strip():
         st.error("Please enter both suburbs.")
         st.stop()
-
-if run_analysis:
     progress = st.progress(0, text="Preparing analysis. . .")
     progress.progress(20, text="Geocoding suburbs. . .")
     progress.progress(40, text="Checking cached results. . .")
     progress.progress(60, text="Fetching nearby places. . .")
     progress.progress(80, text="Generating dashboard. . .")
-    progress.progress(100, text="Completed")
+    progress.progress(100, text="Done")
     loc_a = get_or_create_suburb(suburb_a)
     loc_b = get_or_create_suburb(suburb_b)
     progress.progress(25, text="Validating suburbs…")
@@ -361,217 +320,212 @@ if run_analysis:
         "Detailed Metrics"
     ])
 
+    # Placeholder overall scoring
+    score_a = (0.6 * amenities_score_a) + (0.4 * transport_score_a)
+    score_b = (0.6 * amenities_score_b) + (0.4 * transport_score_b)
+
+    st.markdown("## Overall Livability Score")
+
+    col1, col2 = st.columns(2)
+
+    with col1: 
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-value">{score_a:.0f}/100</div>
+            <div class="kpi-label">>{suburb_a}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-value">{score_a:.0f}/100</div>
+            <div class="kpi-label">{suburb_b}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    
+
     with tab1:
         st.subheader("Distance Between Suburbs")
         st.metric(
             label=f"Distance: {suburb_a} <-> {suburb_b}",
-            value=f"{round(distance_km,2)} km"
-    )
-
-    # INSERT MAP HERE
-    st.subheader("Location Map")
-    map_df = pd.DataFrame({
-        "lat": [loc_a[0], loc_b[0]],
-        "lon": [loc_a[1], loc_b[1]],
-        "suburb": [suburb_a, suburb_b],
-    })
-
-    st.map(map_df[["lat", "lon"]])
-
-    st.caption(f"Showing locations for {suburb_a} and {suburb_b}")
-
-    st.subheader("Amenities (MVP)")
-    c1, c2 = st.columns(2)
-
-    with c1:
-        ##//st.caption(f"Cache: {'HIT' if hit_a else 'MISS'}")
-        st.metric("Amenities score (A)", f"{amenities_score_a:.0f}/100")
-
-    with c2:
-        ##//st.caption(f"Cache: {'HIT' if hit_b else 'MISS'}")
-        st.metric("Amenities score (B)", f"{amenities_score_b:.0f}/100")
-
-    st.markdown("---")
-    st.subheader("Transport (MVP)")
-
-    t1, t2 = st.columns(2)
-
-    with t1:
-        st.metric("Transport score (A)", f"{transport_score_a:.0f}/100")
-
-    with t2:
-        st.metric("Transport score (B)", f"{transport_score_b:.0f}/100")
-
-    # Placeholder overall scoring (you’ll replace later with real weighted model)
-    score_a = (0.6 * amenities_score_a) + (0.4 * transport_score_a)
-    score_b = (0.6 * amenities_score_b) + (0.4 * transport_score_b)
-
-    st.markdown('## Livability Score Overview')
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.metric(
-            label=suburb_a,
-            value=f"{score_a:.0f}/100",
-            delta=f"Amenities {amenities_score_a:.0f} | Transport {transport_score_a:.0f}"
+            value=f"{round(distance_km, 2)} km"
         )
 
-    with col2:
-        st.metric(
-            label=suburb_b,
-            value=f"{score_b:.0f}/100",
-            delta=f"Amenities {amenities_score_b:.0f} | Transport {transport_score_b:.0f}"
-        )
+        st.subheader("Location Map")
+        map_df = pd.DataFrame({
+            "lat": [loc_a[0], loc_b[0]],
+            "lon": [loc_a[1], loc_b[1]],
+            "suburb": [suburb_a, suburb_b],
+        })
+        st.map(map_df[["lat", "lon"]])
+        st.caption(f"Showing locations for {suburb_a} and {suburb_b}")
+
+        if show_amenities:
+            st.markdown("---")
+            st.subheader("Amenities (MVP)")
+            c1, c2 = st.columns(2)
+
+            with c1: 
+                st.metric("Amenities score (A)", f"{amenities_score_a:.0f}/100")
+
+            with c2:
+                st.metric("Amenities score (B)", f"{amenities_score_b:.0f}/100")
+        
+        if show_transport:
+            st.markdown("---")
+            st.subheader("Transport (MVP)")
+            t1, t2 = st.columns(2)
+
+            with t1:
+                st.metric("Transport score (A)", f"{transport_score_a}/100")
+
+            with t2:
+                st.metric("Transport score (B)", f"{transport_score_b}/100")
+
+        st.markdown("## Livability Score Overview")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.metric(
+                label=suburb_a,
+                value=f"{score_a:.0f}/100",
+                delta=f"Amenities {amenities_score_a:.0f} | Transport {transport_score_a:.0f}"
+            )
+
+        with col2:
+            st.metric(
+                label=suburb_b,
+                value=f"{score_b:.0f}/100",
+                delta=f"Amenities {amenities_score_b:.0f} | Transport {transport_score_b:.0f}"
+            )
+
+        st.markdown("## Insight")
+        if score_a > score_b:
+            st.success(f"{suburb_a} performs better overall based on current livability metrics.")
+        elif score_b > score_a:
+            st.success(f"{suburb_b} performs better overall based on current livability metrics.")
+        else:
+            st.info("Both suburbs perform equally based on current metrics.")
     
-    #with col3:
-      #  st.metric("Overall Score", f"{score_b:.0f}/100")
-
-   ### with col1:
-        ##st.metric(label=suburb_a, value=f"{score_a:.0f}/100")
-
-    #with col2:
-     #   st.metric(label=suburb_b, value=f"{score_b:.0f}/100")
-
-    st.markdown('## Insight')
-    if score_a > score_b:
-        st.success(f"{suburb_a} performs better overall based on current livability metrics.")
-    elif score_b > score_a:
-        st.success(f"{suburb_b} performs better overall based on curren livability metrics.")
-    else:
-        st.info("Both suburbs perform equally based on current metrics.")
-
     with tab2:
         st.subheader("Overall Score Comparison")
-        chart_df = pd.DataFrame({"Suburb": ["Suburb A", "Suburb B"], "Score": [score_a, score_b]})
+        chart_df = pd.DataFrame({
+            "Suburb": [suburb_a, suburb_b],
+            "Score": [score_a, score_b]
+        })
         st.bar_chart(chart_df.set_index("Suburb"))
-        
+
         import plotly.graph_objects as go
-        
-        st.markdown("## Suburb Feature Comparison")
 
-    ##st.subheader("Radar Comparison")
-    categories = [
-        "Supermarkets", 
-        "Restaurants", 
-        "Pharmacies", 
-        "Gym",
-        "Train Stations",
-        "Bus Stations"
-    ]
+        st.markdown("### Suburb Feature Comparison")
 
-    values_a = [
-        amenities_a.get("supermarket", 0),
-        amenities_a.get("restaurant", 0),
-        amenities_a.get("pharmacy", 0),
-        amenities_a.get("gym", 0),
-        amenities_a.get("train_station", 0),
-        amenities_a.get("bus_station", 0)
-    ]
+        categories = [
+            "Supermarkets",
+            "Restaurants",
+            "Pharmacies",
+            "Gym",
+            "Train Stations",
+            "Bus Stations"
+        ]
 
-    values_b = [
-        amenities_b.get("supermarket", 0),
-        amenities_b.get("restaurant", 0),
-        amenities_b.get("pharmacy", 0),
-        amenities_b.get("gym", 0),
-        amenities_b.get("train_station", 0),
-        amenities_b.get("bus_station", 0)
-    ]
-
-    fig = go.Figure()
-
-    fig.add_trace(go.Scatterpolar(
-        r=values_a,
-        theta=categories,
-        fill='toself',
-        name=suburb_a
-    ))
-
-    fig.add_trace(go.Scatterpolar(
-        r=values_b,
-        theta=categories,
-        fill='toself',
-        name=suburb_b
-    ))
-
-    fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True)), 
-        showlegend=True
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    with tab3:
-        st.subheader("Comparison Breakdown")
-
-
-    # --- AMENITIES ---------------
-    st.markdown('### Amenities')
-
-    amenities_df = pd.DataFrame({
-        "Metric": ["Supermarkets", "Restaurants", "Pharmacies", "Gym"],
-        suburb_a: [
+        values_a = [
             amenities_a.get("supermarket", 0),
             amenities_a.get("restaurant", 0),
             amenities_a.get("pharmacy", 0),
             amenities_a.get("gym", 0),
-        ],
-        suburb_b: [
+            transport_a.get("train_station", 0),
+            transport_a.get("bus_station", 0)
+        ]
+        
+        values_b = [
             amenities_b.get("supermarket", 0),
             amenities_b.get("restaurant", 0),
             amenities_b.get("pharmacy", 0),
             amenities_b.get("gym", 0),
-        ],
-    })
-
-    st.dataframe(amenities_df, use_container_width=True)
-
-    st.bar_chart(
-        pd.DataFrame({
-            suburb_a: list(amenities_df[suburb_a]),
-            suburb_b: list(amenities_df[suburb_b]),
-        }, index=amenities_df["Metric"])
-    )
-
-    ##------------TRANSPORT--------------
-    st.markdown('### Transport')
-
-    transport_df = pd.DataFrame({
-        "Metric": ["Train Station", "Bus Stations"],
-        suburb_a: [
-            transport_a.get("train_station", 0),
-            transport_a.get("bus_station", 0),
-        ],
-        suburb_b: [
             transport_b.get("train_station", 0),
-            transport_b.get("bus_station", 0),
-       ],
-    })
+            transport_b.get("bus_station", 0)
+        ]
 
-    st.dataframe(transport_df, use_container_width=True)
+        fig = go.Figure()
 
-    st.bar_chart(
-        pd.DataFrame({
-            suburb_a: list(transport_df[suburb_a]),
-            suburb_b: list(transport_df[suburb_b]),
-        }, index=transport_df["Metric"])
-    )
+        fig.add_trace(go.Scatterpolar(
+            r=values_a,
+            theta=categories,
+            fill="toself",
+            name=suburb_a
+        ))
 
-    progress.progress(100, text="Done.")
-    st.success("Comparison built successfully")
+        fig.add_trace(go.Scatterpolar(
+            r=values_b,
+            theta=categories,
+            fill="toself",
+            name=suburb_b
+        ))
 
-    # ----------SCORES----------
-    ##st.markdown('##Scores')
+        fig.update_layout(
+            polar=dict(radialaxis=dict(visible=True)),
+            showlegend=True
+        )
 
-    ##score_df = pd.DataFrame({
-        ##"Category": ["Amenities Score", "Transport Score", "Overall Score"],
-        ##suburb_a: [amenities_score_a, transport_score_a, score_a],
-        ##suburb_b: [amenities_score_b, transport_score_b, score_b],
-    ##})
+        st.plotly_chart(fig, use_container_width=True)
 
-    ##st.caption("Overall Score = (0.6 x Amenities) + (0.4 x Transport)")
+    with tab3:
+        st.subheader("Comparison Breakdown")
 
+        if show_amenities:
+            st.markdown("### Amenities")
+            amenities_df = pd.DataFrame({
+                "Metric": ["Supermarkets", "Restaurants", "Pharmacies", "Gym"],
+                suburb_a: [
+                    amenities_a.get("supermarket", 0),
+                    amenities_a.get("restaurant", 0),
+                    amenities_a.get("pharmacy", 0),
+                    amenities_a.get("gym", 0)
+                ],
+                suburb_b: [
+                    amenities_b.get("supermarket", 0),
+                    amenities_b.get("restaurant", 0),
+                    amenities_b.get("pharmacy", 0),
+                    amenities_b.get("gym", 0)
+                ],                
+            })
 
-    # Optional: log comparison row
+            st.dataframe(amenities_df, use_container_width=True)
+
+            st.bar_chart(
+                pd.DataFrame({
+                    suburb_a: list(amenities_df[suburb_a]),
+                    suburb_b: list(amenities_df[suburb_b]),
+                }, index=amenities_df["Metric"])
+            )
+        if show_transport:
+            st.markdown("### Transport")
+            transport_df = pd.DataFrame({
+                "Metric": ["Train Station", "Bus Stations"],
+                suburb_a: [
+                    transport_a.get("train_station", 0),
+                    transport_a.get("bus_station", 0),
+                ],
+                suburb_b: [
+                    transport_b.get("train_station", 0),
+                    transport_b.get("bus_station", 0),
+                ],
+            })
+
+            st.dataframe(transport_df, use_container_width=True)
+
+            st.bar_chart(
+                pd.DataFrame({
+                    suburb_a: list(transport_df[suburb_a]),
+                    suburb_b: list(transport_df[suburb_b]),
+                }, index=transport_df["Metric"])
+            )
+        
+        progress.progress(100, text="Done.")
+        st.success("Comparison built successfully")
+
     supabase.table("suburb_comparisons").insert({
         "suburb_a": suburb_a,
         "suburb_b": suburb_b,
@@ -586,7 +540,6 @@ if run_analysis:
     }).execute()
 
     st.divider()
-
     st.caption(
         "Neighbourhood Livability Index - Built with Streamlit, Google Places API, and Supabase"
     )

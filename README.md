@@ -28,3 +28,39 @@ Choosing where to live is complex. This project simplifies decision-making by qu
 - Helps users make informed housing decisions
 - Can be extended for real estate analytics
 - Supports urban planning insights
+
+# Neighborhood Livability Index (MVP)
+
+## Overview
+This project is an intercative Streamlit dashboard that compares the livability of two suburbs using amenities, transport access, distance, and location analytics.
+
+## Features
+- Compare two suburbs
+- Geocode suburb locations
+- Calculate distance between suburbs
+- Show suburb locations on a map
+- Score amenities and transport
+- Generate overall livability score
+- Radar and bar chart comparison
+- Cache results in Supabase
+
+## Tech Stack
+- Python
+- Streamlit
+- Supabase
+- Google Places API
+- Plotly
+- Pandas
+- Geopy
+
+## Architecture
+Streamlit UI -> Google Places API -> Feature extraction -> Supabase caching -> SQL scoring -> Dashboard visualisation
+
+## Scoring Model
+Overall Score = (0.6 x Amenities Score) + (0.4 x Transport Score)
+
+## Future Improvements
+- Distance to CBD
+- User-controlled score weighting
+- Population-normalised metrics
+- Crime/school/healthcare metrics
